@@ -6,161 +6,59 @@
 > and Satellite Systems at UC Davis. It runs on the Orbital Platform flight
 > computer (STM32L476ZG, ARM Cortex-M4F) with no vendor HAL — every driver
 > talks to hardware registers directly. On boot it brings up clocks, buses,
-> sensors, and watchdogs, then hands control to a FreeRTOS scheduler whose
-> mission modes call into a fully separable ADCS subsystem. The **north star**
-> is the autonomous mission loop — the scheduler picks a mode, ADCS points the
-> satellite, the 100 ms logger records the experiment, and the radio downlinks
-> it to the ground.
+> sensors, and watchdogs, then idles in `while(1)`. Handing control to a
+> FreeRTOS scheduler whose mission modes call into a fully separable ADCS
+> subsystem is the planned next step (the start call is still commented out
+> in `main.c`). The **north star** is the autonomous mission loop — the
+> scheduler picks a mode, ADCS points the satellite, the 100 ms logger records
+> the experiment, and the radio downlinks it to the ground.
 
 This document is the developer-facing map of the whole system — every
 component, **built or planned**, and how data moves between them. Read the
-flowchart top-to-bottom; the dashed nodes are the roadmap.
+flowchart top-to-bottom; the dashed boxes and links are the roadmap.
 
 ---
 
 ## End-to-end flowchart
 
-```mermaid
-flowchart TD
-    %% ===== Boot =====
-    subgraph BOOT["Boot — Startup/ + Src/main.c"]
-        reset["Reset vector<br/>startup_stm32l476zgtx.s"]:::boot
-        main["main()<br/>switches: flight · hardware test · unit tests"]:::boot
-        initinit["init_init()<br/>core clocks + RTC"]:::boot
-        initplat["init_platform()<br/>FPU · drivers · watchdog · heartbeat"]:::boot
-    end
-
-    %% ===== System drivers =====
-    subgraph SYS["System drivers — Src/system_config — register-level, no HAL"]
-        buses["Buses<br/>UART+CRC · soft I2C · SPI · QSPI flash"]:::sys
-        adcdma["ADC + DMA"]:::sys
-        timers["Timers<br/>PWM TIM1/TIM2 · ExpLog TIM6 · startup TIM5"]:::sys
-        rtc["RTC<br/>calendar · alarms · wakeup"]:::sys
-        pwr["PWR<br/>low-power run + sleep primitives"]:::sys
-        wdg["IWDG + WWDG watchdogs<br/>+ fault handlers"]:::sys
-    end
-
-    %% ===== Peripherals =====
-    subgraph PER["Peripheral drivers — Src/peripherals"]
-        imu["IMU x2 — ASM330LHH<br/>SPI · set_IMU redundancy"]:::per
-        mag["MAG x2 — QMC5883L<br/>software I2C"]:::per
-        sun["Sun sensors<br/>photodiodes via ADC · TMP275 · INA226"]:::per
-        pdb["Power distribution<br/>pyro burnwire · MGT · HDD rails"]:::per
-        radio["Radio intercom<br/>USART1 + CRC chunk protocol"]:::per
-        mgti["MGT intercom<br/>USART2 · coil PWM + current"]:::per
-        bat["Battery monitor"]:::planned
-    end
-
-    %% ===== Scheduler =====
-    subgraph RTOS["Mission scheduler — FreeRTOS + Src/scheduler"]
-        kernel["FreeRTOS kernel<br/>tasks · queues · malloc/stack hooks"]:::rtos
-        lowpwr["low_pwr<br/>tickless idle via RTC wakeup"]:::rtos
-        modes["Mission modes ★ north star<br/>detumble · experiment · comms · ecc · idle"]:::planned
-    end
-
-    %% ===== ADCS =====
-    subgraph ADCSG["ADCS — Src/ADCS — separable subsystem"]
-        adcsmain["ADCS_MAIN + recommend_mode<br/>detumble · HDD experiments · testing"]:::adcs
-        det["Determination<br/>TRIAD · IGRF field · SGP4/TLE orbit · SPA sun"]:::adcs
-        ctl["Control<br/>B-dot detumble · PID · ramp"]:::adcs
-        vi["virtual_intellisat bridge<br/>vi_* sensor reads + actuator commands"]:::adcs
-        vrtos["virtual_rtos<br/>run ADCS off-target on a desktop"]:::adcs
-    end
-
-    %% ===== Logging =====
-    subgraph LOG["Experiment logging"]
-        tim6["ExpLog timer — TIM6<br/>interrupt every 100 ms"]:::sys
-        cb["registered callback<br/>logger_registerLogFunction"]:::sys
-        recs["logging records<br/>ADCS loggers_interface"]:::adcs
-        flash[("QSPI flash<br/>persistence")]:::planned
-    end
-
-    %% ===== Verification =====
-    subgraph TEST["Verification — runs on the board"]
-        testers["TestDefinition registry<br/>per-driver hardware testers"]:::test
-        units["Unit test framework<br/>suites · registry · assertions"]:::test
-    end
-
-    %% ===== External =====
-    ground["Ground station"]:::data
-    mgtmcu["Magnetorquer MCU"]:::data
-
-    %% ===== Flows =====
-    reset --> main
-    main --> initinit --> initplat
-    initplat --> SYS
-    SYS --> PER
-
-    main --> kernel
-    kernel --> lowpwr
-    kernel --> modes
-    lowpwr -.->|arms wakeup| rtc
-
-    modes -.->|commands a mode| adcsmain
-    adcsmain --> det --> ctl
-    det <--> vi
-    ctl --> vi
-    imu --> vi
-    mag --> vi
-    sun --> vi
-    vi -->|coil dipole| mgti
-    vi -->|HDD throttle| pdb
-    mgti <--> mgtmcu
-    adcsmain -.->|port| vrtos
-
-    timers --> tim6
-    tim6 --> cb --> recs
-    recs -.->|persist| flash
-
-    radio <-->|downlink / commands| ground
-
-    main -.->|RUN_TEST| testers
-    main -.->|RUN_UNIT_TESTS| units
-
-    %% ===== Styles =====
-    classDef boot fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    classDef sys fill:#E6F1FB,stroke:#185FA5,color:#0C447C;
-    classDef per fill:#E1F5EE,stroke:#0F6E56,color:#085041;
-    classDef rtos fill:#EEEDFE,stroke:#534AB7,color:#3C3489,stroke-width:2px;
-    classDef adcs fill:#FAECE7,stroke:#993C1D,color:#712B13;
-    classDef test fill:#FBF3DC,stroke:#8A6D1A,color:#5C4A0F;
-    classDef data fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    classDef planned fill:#F6F6F4,stroke:#888780,color:#5F5E5A,stroke-dasharray:5 4;
-```
-
-**Legend** — ⬜ boot / external · 🟦 system drivers (register-level) ·
-🟩 peripherals · 🟪 FreeRTOS scheduler · 🟧 ADCS · 🟨 on-target verification ·
-◌ dashed = planned / scaffolded (not yet flight logic).
+<p align="center"><img src="docs/system-design-flowchart.svg" alt="IntelliSat end-to-end flowchart. Reset_Handler calls main(), which runs init_init() (clocks to 80 MHz, RTC on LSI) and then init_platform() (FPU, console, both IMUs, both magnetometers, sun sensors, LEDs, DMA, watchdogs, TIM7 heartbeat), then takes one compile-time path: a hardware test, the unit tests, or by default while(1). The branch_main() call that would start FreeRTOS is commented out, so the kernel (heap_4, 1 kHz configured tick, tickless idle via PWR and the RTC wakeup) and the empty mission-mode tasks are not reached, and nothing calls ADCS_MAIN yet. ADCS control (B-dot, PID, ramp) and determination (TRIAD with IGRF, SGP4, SPA) reach hardware only through the vi_* bridge: gyro reads, timing and HDD PWM are wired; magnetometer, sun sensor, coil, epoch and TLE calls are stubs. Register-level system drivers serve the device drivers for the IMUs (SPI), magnetometers (soft I2C, reads always use MAG1), sun sensors (ADC2/ADC3 and soft I2C), HDD ESCs (PWM), the magnetorquer MCU (USART2) and the radio board (USART1), both two-way at 9600 baud with CRC; the radio board carries downlink and commands to and from the ground station. The TIM6 experiment logger is set for 100 ms and started only by its test, no log callback is registered, and logging records, flash and FRAM storage are declared only. The power-distribution driver has no caller and the battery monitor is commented out." width="100%"></p>
 
 ---
 
 ## How to read it: the three flows that matter
 
 1. **Two headers decouple the flight software from ADCS.** `ADCS.h` is the
-   downcall — a scheduler mode commands `ADCS_MAIN(mode)` and blocks until it
-   returns a status. `virtual_intellisat.h` is the upcall — ADCS reads sensors
-   and commands actuators *only* through `vi_*` functions that IntelliSat
-   implements. ADCS never touches a hardware register, so the same control
-   code builds and runs off-target through `virtual_rtos` for development
-   without a board.
+   downcall — a scheduler mode is meant to command `ADCS_MAIN(mode)` and block
+   until it returns a status (no caller exists yet). `virtual_intellisat.h` is
+   the upcall — ADCS reads sensors and commands actuators *only* through `vi_*`
+   functions that IntelliSat implements (gyro, millisecond clock and HDD PWM
+   so far; mag, sun sensors and coils are still stubs). ADCS never touches a
+   hardware register, so its sources also compile on a host into `libADCS.a`
+   (`Src/ADCS/makefile`, gcc). `virtual_rtos` is the ADCS-side wrapper over
+   FreeRTOS critical sections and task notifications; nothing calls it yet.
 2. **The experiment logger is a callback, not a subsystem** (the
-   `TIM6 → callback` edge). TIM6 fires an interrupt every 100 ms; whatever an
-   experiment needs recorded is bound at runtime with
-   `logger_registerLogFunction()`, and the ISR dispatches it. Timer hardware
-   stays decoupled from application logic, and the sampling cadence holds no
-   matter what the RTOS is doing.
+   `TIM6 → callback` edge). TIM6 is configured for an update interrupt every
+   ≈100 ms (99.88 ms); whatever an experiment needs recorded is bound at
+   runtime with `logger_registerLogFunction()`, and the ISR dispatches it.
+   Timer hardware stays decoupled from application logic. Today only hardware
+   test 3 starts the timer, and no experiment registers a callback yet.
 3. **Redundancy and board revisions are gates, not forks.** The `OP_REV` macro
    selects pin maps and bus assignments per Orbital Platform revision at
    compile time. On Rev 3 the platform carries two IMUs on separate SPI buses
-   and two magnetometers — `set_IMU()` retargets every driver call between
-   IMU0 and IMU1 at runtime, so a failed sensor is a switch, not a mission
-   loss.
+   and two magnetometers — `set_IMU()` selects which of IMU0 and IMU1 every
+   driver call addresses, so switching IMUs is one call. Automatic failover is
+   designed in ADCS `selectSensor()` but waits on `vi_get_sensor_status()`,
+   which is still a stub.
 
-The **★ mission modes** node is the north star. The diagram makes the
-punchline visible: everything upstream already exists to feed it — drivers,
-scheduler, ADCS algorithms, and the logger are built; the mode tasks
-(`*_time` / `config_*` / `run_*` / `clean_*`) are scaffolded and waiting for
-flight logic.
+The **Mission modes** node is the north star. The diagram makes the
+punchline visible: most of what feeds it already exists — drivers, the
+FreeRTOS kernel, ADCS algorithms, and the TIM6 logger timer are built; what is
+missing is the wiring (the scheduler start in `main()`, routing SysTick to the
+FreeRTOS tick handler — `xPortSysTickHandler` is commented out in
+`FreeRTOSConfig.h`, so `SysTick_Handler` is still the startup default loop —
+creating the mode tasks, a caller for `ADCS_MAIN`, the stubbed `vi_*` calls, a
+registered log callback), and the mode functions (`*_time` / `config_*` / run /
+`clean_*`) are scaffolded and waiting for flight logic.
 
 ---
 
@@ -197,14 +95,16 @@ flight logic.
 | ADCS math (vector · matrix · quaternion) | ADCS | C | ✅ built | `Src/ADCS/adcs_math/` |
 | Attitude determination (TRIAD + models) | ADCS | C · IGRF/SGP4/SPA/NOVAS | ✅ built | `Src/ADCS/determination/` |
 | Attitude control (B-dot · PID · ramp) | ADCS | C | ✅ built | `Src/ADCS/control/` |
-| `virtual_intellisat` bridge | ADCS | C headers | 🟡 interface fixed, impls pending | `Src/ADCS/virtual_intellisat.h` |
+| `virtual_intellisat` bridge | ADCS | C | 🟡 gyro, clock, HDD PWM wired; mag, sun, coils, epoch, TLE stubbed | `Src/ADCS/virtual_intellisat.h`, `.c` |
 | On-target unit test framework | Verification | C | ✅ built (IMU suite) | `Src/unit_tests/` |
 | Per-driver hardware testers | Verification | C | ✅ built | `*_tester.c`, `*_test.c` |
 
 > Mission mode tasks follow a fixed contract — `*_time()` (should it run?),
-> `config_*`, `run_*`, `clean_*` — declared in
+> `config_*`, a run function (`run_detumble`, `comms`, `experiment`, `ecc`,
+> `idle`), `clean_*` — declared in
 > `Src/scheduler/intelliTasks/intelliTasks_proto.h`. The pattern is in place;
-> the bodies are stubs awaiting flight logic.
+> the bodies are stubs awaiting flight logic, and the `low_pwr` set is
+> declared but not yet defined.
 
 ---
 

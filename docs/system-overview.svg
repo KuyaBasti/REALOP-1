@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 600" width="1000" height="600" role="img" aria-label="IntelliSat (REALOP-1) system overview: on the Orbital Platform's STM32L476ZG at 80 MHz, main() initialises the dual IMUs, dual magnetometers, sun sensors and watchdogs through register-level drivers, then idles; the FreeRTOS scheduler start is commented out, nothing calls ADCS_MAIN, and ADCS reaches hardware only through the partly stubbed virtual_intellisat layer; the magnetorquer MCU and radio UART links and the HDD PWM run only from hardware tests, and the power-distribution GPIO driver has no caller yet.">
+  <style>
+    .bg{fill:#ffffff}
+    .title{fill:#1f2328;font:600 22px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .sub{fill:#59636e;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .lbl{fill:#1f2328;font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .note{fill:#59636e;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .glbl{fill:#59636e;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;letter-spacing:.06em}
+    .elbl{fill:#59636e;font:11px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .edge{stroke:#818b98;stroke-width:1.6;fill:none}
+    .edge-dash{stroke:#818b98;stroke-width:1.6;fill:none;stroke-dasharray:6 4}
+    .arrow{fill:#818b98}
+    .group{fill:none;stroke:#d1d9e0;stroke-width:1.2;stroke-dasharray:4 4}
+    .b-blue{fill:#ddf4ff;stroke:#54aeff;stroke-width:1.5}
+    .b-green{fill:#dafbe1;stroke:#4ac26b;stroke-width:1.5}
+    .b-purple{fill:#fbefff;stroke:#c297ff;stroke-width:1.5}
+    .b-orange{fill:#fff1e5;stroke:#fb8f44;stroke-width:1.5}
+    .b-gray{fill:#f6f8fa;stroke:#d1d9e0;stroke-width:1.5}
+    .b-planned{fill:none;stroke:#818b98;stroke-width:1.4;stroke-dasharray:5 4}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    @media (prefers-color-scheme: dark){
+      .bg{fill:#0d1117}
+      .title,.lbl{fill:#e6edf3}
+      .sub,.note,.glbl,.elbl{fill:#9198a1}
+      .edge,.edge-dash{stroke:#9198a1}
+      .arrow{fill:#9198a1}
+      .group{stroke:#3d444d}
+      .b-blue{fill:#0c2d6b;stroke:#4493f8}
+      .b-green{fill:#0f3b1e;stroke:#3fb950}
+      .b-purple{fill:#2e1a4f;stroke:#ab7df8}
+      .b-orange{fill:#3d1f0a;stroke:#f0883e}
+      .b-gray{fill:#151b23;stroke:#3d444d}
+      .b-planned{stroke:#9198a1}
+    }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrow" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="1000" height="600" rx="12"/>
+  <text class="title" x="32" y="48">IntelliSat (REALOP-1) — system overview</text>
+  <text class="sub" x="32" y="74">Bare-metal C for the REALOP-1 CubeSat: boot inits sensors and watchdogs, then idles; RTOS modes and ADCS aren’t wired yet.</text>
+
+  <!-- ===== Flight computer (MCU) ===== -->
+  <rect class="group" x="228" y="100" width="544" height="360" rx="12"/>
+  <text class="glbl" x="244" y="122">ORBITAL PLATFORM · STM32L476ZG · CORTEX-M4F · 80 MHz</text>
+
+  <!-- Row 1: scheduler (scaffolded) and ADCS -->
+  <rect class="b-planned" x="248" y="140" width="190" height="72" rx="10"/>
+  <text class="lbl" x="343" y="166" text-anchor="middle">FreeRTOS scheduler</text>
+  <text class="note" x="343" y="185" text-anchor="middle">kernel + tickless idle hook</text>
+  <text class="note" x="343" y="201" text-anchor="middle">mode tasks: empty stubs</text>
+
+  <rect class="b-green" x="562" y="140" width="190" height="72" rx="10"/>
+  <text class="lbl" x="657" y="166" text-anchor="middle">ADCS subsystem</text>
+  <text class="note" x="657" y="185" text-anchor="middle">B-dot · TRIAD · PID · ramp</text>
+  <text class="note" x="657" y="201" text-anchor="middle">SGP4 · IGRF · SPA models</text>
+
+  <path class="edge-dash" d="M438,176 H561" marker-end="url(#ah)"/>
+  <text class="elbl mono" x="500" y="167" text-anchor="middle">ADCS_MAIN(mode)</text>
+  <text class="elbl" x="500" y="194" text-anchor="middle">no caller yet</text>
+
+  <!-- Row 2: boot path and the vi_* bridge -->
+  <rect class="b-green" x="248" y="252" width="190" height="72" rx="10"/>
+  <text class="lbl" x="343" y="278" text-anchor="middle">main() boot</text>
+  <text class="note" x="343" y="297" text-anchor="middle">clocks · RTC · sensors · WDG</text>
+  <text class="note" x="343" y="313" text-anchor="middle">then while(1), or a test</text>
+
+  <path class="edge-dash" d="M343,251 V213" marker-end="url(#ah)"/>
+  <text class="elbl" x="353" y="236">start: commented out</text>
+
+  <rect class="b-green" x="562" y="252" width="190" height="72" rx="10"/>
+  <text class="lbl" x="657" y="278" text-anchor="middle">virtual_intellisat</text>
+  <text class="note" x="657" y="297" text-anchor="middle">ADCS-to-hardware boundary</text>
+  <text class="note" x="657" y="313" text-anchor="middle">mag, sun, coils: still stubs</text>
+
+  <path class="edge" d="M657,213 V251" marker-start="url(#ah)" marker-end="url(#ah)"/>
+  <text class="elbl mono" x="647" y="236" text-anchor="end">vi_* calls</text>
+
+  <!-- Row 3: drivers -->
+  <rect class="b-blue" x="248" y="364" width="504" height="80" rx="10"/>
+  <text class="lbl" x="500" y="390" text-anchor="middle">Register-level drivers (no HAL)</text>
+  <text class="note" x="500" y="411" text-anchor="middle">SPI · bit-banged I2C · UART + CRC · ADC + DMA · QSPI · RTC</text>
+  <text class="note" x="500" y="429" text-anchor="middle">PWM TIM1/TIM2 · TIM6 log ≈100 ms · TIM7 1 ms · IWDG + WWDG</text>
+
+  <path class="edge" d="M343,325 V363" marker-end="url(#ah)"/>
+  <text class="elbl mono" x="353" y="348">init_platform()</text>
+
+  <path class="edge" d="M657,325 V363" marker-start="url(#ah)" marker-end="url(#ah)"/>
+  <text class="elbl" x="647" y="348" text-anchor="end">gyro · ms clock · PWM duty</text>
+
+  <!-- ===== Sensors (left) ===== -->
+  <text class="glbl" x="20" y="268">SENSORS</text>
+  <rect class="b-orange" x="20" y="280" width="184" height="68" rx="10"/>
+  <text class="lbl" x="112" y="304" text-anchor="middle">IMU ×2 · ASM330LHH</text>
+  <text class="note" x="112" y="322" text-anchor="middle">SPI3 + SPI2 (board Rev 3)</text>
+  <text class="note" x="112" y="338" text-anchor="middle">set_IMU() picks one</text>
+
+  <rect class="b-orange" x="20" y="362" width="184" height="68" rx="10"/>
+  <text class="lbl" x="112" y="386" text-anchor="middle">MAG ×2 · QMC5883L</text>
+  <text class="note" x="112" y="404" text-anchor="middle">bit-banged I2C</text>
+  <text class="note" x="112" y="420" text-anchor="middle">own pin pair each</text>
+
+  <rect class="b-orange" x="20" y="444" width="184" height="68" rx="10"/>
+  <text class="lbl" x="112" y="468" text-anchor="middle">Sun sensors</text>
+  <text class="note" x="112" y="486" text-anchor="middle">12 photodiodes · ADC2/3</text>
+  <text class="note" x="112" y="502" text-anchor="middle">INA226 + TMP275 · I2C</text>
+
+  <path class="edge" d="M204,314 H214 V378 H247" marker-end="url(#ah)"/>
+  <path class="edge" d="M204,396 H247" marker-end="url(#ah)"/>
+  <path class="edge" d="M204,478 H214 V420 H247" marker-end="url(#ah)"/>
+
+  <!-- ===== UART links to other processors (right) ===== -->
+  <text class="glbl" x="796" y="322">UART LINKS</text>
+  <text class="elbl" x="796" y="339">driven only by hardware tests</text>
+  <rect class="b-purple" x="796" y="352" width="184" height="64" rx="10"/>
+  <text class="lbl" x="888" y="375" text-anchor="middle">Magnetorquer MCU</text>
+  <text class="note" x="888" y="393" text-anchor="middle">USART2 · 9600 · CRC</text>
+  <text class="note" x="888" y="409" text-anchor="middle">coil PWM % · coil current</text>
+
+  <rect class="b-purple" x="796" y="434" width="184" height="64" rx="10"/>
+  <text class="lbl" x="888" y="457" text-anchor="middle">Radio</text>
+  <text class="note" x="888" y="475" text-anchor="middle">USART1 · 9600 · CRC</text>
+  <text class="note" x="888" y="491" text-anchor="middle">relays to ground station</text>
+
+  <path class="edge" d="M753,384 H795" marker-start="url(#ah)" marker-end="url(#ah)"/>
+  <path class="edge" d="M753,428 H784 V466 H795" marker-start="url(#ah)" marker-end="url(#ah)"/>
+
+  <!-- ===== Actuation + power (below) ===== -->
+  <text class="glbl" x="248" y="490">ACTUATION + POWER</text>
+  <rect class="b-orange" x="304" y="500" width="204" height="68" rx="10"/>
+  <text class="lbl" x="406" y="524" text-anchor="middle">HDD ×2 (via ESC)</text>
+  <text class="note" x="406" y="542" text-anchor="middle">PWM: TIM1 CH1 · TIM2 CH4</text>
+  <text class="note" x="406" y="558" text-anchor="middle">ADCS HDD experiments</text>
+
+  <rect class="b-orange" x="548" y="500" width="204" height="68" rx="10"/>
+  <text class="lbl" x="650" y="524" text-anchor="middle">Power distribution</text>
+  <text class="note" x="650" y="542" text-anchor="middle">GPIO-switched rails</text>
+  <text class="note" x="650" y="558" text-anchor="middle">HDD · MGT · pyro burn wire</text>
+
+  <path class="edge" d="M406,445 V499" marker-end="url(#ah)"/>
+  <text class="elbl" x="416" y="482">PWM · hardware test only</text>
+  <path class="edge-dash" d="M650,445 V499" marker-end="url(#ah)"/>
+  <text class="elbl" x="660" y="482">GPIO · no caller yet</text>
+
+  <!-- ===== Legend ===== -->
+  <rect class="b-planned" x="20" y="540" width="26" height="14" rx="4"/>
+  <text class="elbl" x="56" y="551">scaffolded: never started</text>
+  <line class="edge-dash" x1="20" y1="574" x2="46" y2="574"/>
+  <text class="elbl" x="56" y="578">no caller in the code yet</text>
+</svg>

@@ -1,0 +1,417 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 2020" width="1000" height="2020" role="img" aria-label="IntelliSat end-to-end flowchart. Reset_Handler calls main(), which runs init_init() (clocks to 80 MHz, RTC on LSI) and then init_platform() (FPU, console UART, both IMUs, both magnetometers, sun sensors, LEDs, DMA, watchdogs, TIM7 heartbeat). A compile-time #if then runs one hardware test (RUN_TEST=1 and TEST_ID not 0), the unit tests (RUN_UNIT_TESTS=1 and RUN_TEST=0), or by default while(1), where only interrupts such as the TIM7 heartbeat and the TIM3 watchdog kick keep running. The branch_main() call that would start the FreeRTOS scheduler is commented out, so the kernel, the empty mission-mode tasks and the ADCS_MAIN entry point are not reached in the flight build; nothing calls ADCS_MAIN yet. The tickless-idle hook drives PWR and the RTC wakeup. ADCS control (B-dot, PID, ramp) and determination (TRIAD with IGRF, SGP4, SPA, NOVAS) reach hardware only through the virtual_intellisat bridge, where gyro reads, timing and HDD PWM are implemented and magnetometer, sun sensor, coil, epoch and TLE calls are stubs. Device drivers use the register-level system drivers and talk to the IMUs over SPI, magnetometers and panel monitors over software I2C (magnetometer reads always go to MAG1), photodiodes over ADC2 and ADC3, HDD ESCs over PWM on TIM1 and TIM2, the magnetorquer MCU over USART2 and the radio board over USART1, both two-way at 9600 baud with CRC; the radio board carries downlink and commands to and from the ground station. The TIM6 experiment logger is set for 100 ms and started only by its hardware test, no log callback is registered, and the logging records, flash and FRAM storage are declared only.">
+  <style>
+    .bg{fill:#ffffff}
+    .title{fill:#1f2328;font:600 22px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .sub{fill:#59636e;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .lbl{fill:#1f2328;font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .note{fill:#59636e;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .glbl{fill:#59636e;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;letter-spacing:.06em}
+    .elbl{fill:#59636e;font:11px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .edge{stroke:#818b98;stroke-width:1.6;fill:none}
+    .edge-dash{stroke:#818b98;stroke-width:1.6;fill:none;stroke-dasharray:6 4}
+    .arrow{fill:#818b98}
+    .group{fill:none;stroke:#d1d9e0;stroke-width:1.2;stroke-dasharray:4 4}
+    .b-blue{fill:#ddf4ff;stroke:#54aeff;stroke-width:1.5}
+    .b-green{fill:#dafbe1;stroke:#4ac26b;stroke-width:1.5}
+    .b-purple{fill:#fbefff;stroke:#c297ff;stroke-width:1.5}
+    .b-orange{fill:#fff1e5;stroke:#fb8f44;stroke-width:1.5}
+    .b-gray{fill:#f6f8fa;stroke:#d1d9e0;stroke-width:1.5}
+    .b-red{fill:#ffebe9;stroke:#ff8182;stroke-width:1.5}
+    .b-planned{fill:none;stroke:#818b98;stroke-width:1.4;stroke-dasharray:5 4}
+    .dot{fill:#59636e}
+    @media (prefers-color-scheme: dark){
+      .bg{fill:#0d1117}
+      .title,.lbl{fill:#e6edf3}
+      .sub,.note,.glbl,.elbl{fill:#9198a1}
+      .edge,.edge-dash{stroke:#9198a1}
+      .arrow{fill:#9198a1}
+      .group{stroke:#3d444d}
+      .b-blue{fill:#0c2d6b;stroke:#4493f8}
+      .b-green{fill:#0f3b1e;stroke:#3fb950}
+      .b-purple{fill:#2e1a4f;stroke:#ab7df8}
+      .b-orange{fill:#3d1f0a;stroke:#f0883e}
+      .b-gray{fill:#151b23;stroke:#3d444d}
+      .b-red{fill:#3c1618;stroke:#f85149}
+      .b-planned{stroke:#9198a1}
+      .dot{fill:#9198a1}
+    }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrow" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1000" height="2020" rx="12"/>
+  <text class="title" x="32" y="48">IntelliSat — end-to-end flowchart</text>
+  <text class="sub" x="32" y="74">Today the flight build boots, sets up its drivers and idles in while(1); every dashed part is roadmap.</text>
+
+  <!-- ===================== BOOT ===================== -->
+  <rect class="group" x="24" y="92" width="928" height="134" rx="12"/>
+  <text class="glbl" x="40" y="114">BOOT — Startup/ + Src/main.c</text>
+
+  <rect class="b-gray" x="40" y="134" width="200" height="76" rx="10"/>
+  <text class="lbl" x="140" y="158" text-anchor="middle">Reset_Handler</text>
+  <text class="note" x="140" y="177" text-anchor="middle">startup_stm32l476zgtx.s</text>
+  <text class="note" x="140" y="196" text-anchor="middle">SystemInit → libc init → main</text>
+
+  <rect class="b-gray" x="272" y="134" width="140" height="76" rx="10"/>
+  <text class="lbl" x="342" y="158" text-anchor="middle">main()</text>
+  <text class="note" x="342" y="177" text-anchor="middle">Src/main.c</text>
+  <text class="note" x="342" y="196" text-anchor="middle">then one #if path</text>
+
+  <rect class="b-gray" x="444" y="134" width="210" height="76" rx="10"/>
+  <text class="lbl" x="549" y="158" text-anchor="middle">init_init()</text>
+  <text class="note" x="549" y="177" text-anchor="middle">init_coreClocks(): HSI16</text>
+  <text class="note" x="549" y="196" text-anchor="middle">→ PLL 80 MHz · RTC on LSI</text>
+
+  <rect class="b-gray" x="686" y="134" width="250" height="76" rx="10"/>
+  <text class="lbl" x="811" y="158" text-anchor="middle">init_platform()</text>
+  <text class="note" x="811" y="177" text-anchor="middle">FPU · console · IMU ×2 · MAG ×2</text>
+  <text class="note" x="811" y="196" text-anchor="middle">sun sensors · LEDs · DMA · WDG · TIM7</text>
+
+  <path class="edge" d="M240,172 H268" marker-end="url(#ah)"/>
+  <path class="edge" d="M412,172 H440" marker-end="url(#ah)"/>
+  <text class="elbl" x="426" y="164" text-anchor="middle">1st</text>
+  <path class="edge" d="M396,134 V120 H811 V130" marker-end="url(#ah)"/>
+  <text class="elbl" x="604" y="114" text-anchor="middle">2nd</text>
+
+  <!-- init_platform configures the system drivers (right-hand corridor) -->
+  <path class="edge" d="M936,172 H968 V650 H956" marker-end="url(#ah)"/>
+
+  <!-- ===================== main() #if outcomes ===================== -->
+  <rect class="group" x="24" y="270" width="452" height="124" rx="12"/>
+  <text class="glbl" x="40" y="292">FLIGHT PATH</text>
+  <rect class="group" x="500" y="270" width="452" height="124" rx="12"/>
+  <text class="glbl" x="516" y="292">VERIFICATION</text>
+
+  <rect class="b-gray" x="40" y="304" width="200" height="76" rx="10"/>
+  <text class="lbl" x="140" y="328" text-anchor="middle">Default: while(1)</text>
+  <text class="note" x="140" y="347" text-anchor="middle">flight build idles here</text>
+  <text class="note" x="140" y="366" text-anchor="middle">ISRs still run: TIM7, TIM3</text>
+
+  <rect class="b-planned" x="260" y="304" width="200" height="76" rx="10"/>
+  <text class="lbl" x="360" y="328" text-anchor="middle">branch_main()</text>
+  <text class="note" x="360" y="347" text-anchor="middle">its call is commented out</text>
+  <text class="note" x="360" y="366" text-anchor="middle">TODO in it: init_first_time()</text>
+
+  <rect class="b-gray" x="516" y="304" width="200" height="76" rx="10"/>
+  <text class="lbl" x="616" y="328" text-anchor="middle">Hardware testers</text>
+  <text class="note" x="616" y="347" text-anchor="middle">getTestFunction(TEST_ID)</text>
+  <text class="note" x="616" y="366" text-anchor="middle">19 hardware test IDs</text>
+
+  <rect class="b-gray" x="736" y="304" width="200" height="76" rx="10"/>
+  <text class="lbl" x="836" y="328" text-anchor="middle">Unit test framework</text>
+  <text class="note" x="836" y="347" text-anchor="middle">run_tests(): suites, registry</text>
+  <text class="note" x="836" y="366" text-anchor="middle">assertions · IMU suite</text>
+
+  <path class="edge" d="M292,210 V244 H190 V300" marker-end="url(#ah)"/>
+  <text class="elbl" x="200" y="238">#else (default)</text>
+  <path class="edge-dash" d="M342,210 V300" marker-end="url(#ah)"/>
+  <text class="elbl" x="350" y="262">commented out</text>
+  <path class="edge" d="M392,210 V244 H900 V300" marker-end="url(#ah)"/>
+  <path class="edge" d="M660,244 V300" marker-end="url(#ah)"/>
+  <circle class="dot" cx="660" cy="244" r="3"/>
+  <text class="elbl" x="652" y="264" text-anchor="end">RUN_TEST=1 · TEST_ID≠0</text>
+  <text class="elbl" x="892" y="264" text-anchor="end">RUN_TEST=0 · RUN_UNIT_TESTS=1</text>
+
+  <!-- ===================== FREERTOS ===================== -->
+  <rect class="group" x="24" y="424" width="928" height="124" rx="12"/>
+  <text class="glbl" x="40" y="446">FREERTOS — FreeRTOS/ + Src/scheduler</text>
+
+  <rect class="b-planned" x="40" y="458" width="250" height="76" rx="10"/>
+  <text class="lbl" x="165" y="482" text-anchor="middle">Mission modes — north star</text>
+  <text class="note" x="165" y="501" text-anchor="middle">detumble · experiment · comms · ecc</text>
+  <text class="note" x="165" y="520" text-anchor="middle">idle · each *_time() returns false</text>
+
+  <rect class="b-purple" x="320" y="458" width="246" height="76" rx="10"/>
+  <text class="lbl" x="443" y="482" text-anchor="middle">FreeRTOS kernel</text>
+  <text class="note" x="443" y="501" text-anchor="middle">heap_4 · 40960 B heap</text>
+  <text class="note" x="443" y="520" text-anchor="middle">malloc + stack-overflow hooks</text>
+
+  <rect class="b-purple" x="600" y="458" width="336" height="76" rx="10"/>
+  <text class="lbl" x="768" y="482" text-anchor="middle">low_pwr — tickless idle</text>
+  <text class="note" x="768" y="501" text-anchor="middle">vPortSuppressTicksAndSleep()</text>
+  <text class="note" x="768" y="520" text-anchor="middle">LP run · RTC wakeup · WFI · step tick</text>
+
+  <path class="edge-dash" d="M360,380 V454" marker-end="url(#ah)"/>
+  <text class="elbl" x="368" y="410">vTaskStartScheduler()</text>
+  <path class="edge-dash" d="M320,496 H294" marker-end="url(#ah)"/>
+  <path class="edge" d="M566,496 H596" marker-end="url(#ah)"/>
+  <text class="elbl" x="581" y="488" text-anchor="middle">idle</text>
+
+  <!-- ===================== SYSTEM DRIVERS ===================== -->
+  <rect class="group" x="340" y="578" width="612" height="306" rx="12"/>
+  <text class="glbl" x="356" y="600">SYSTEM DRIVERS — Src/system_config, no HAL</text>
+
+  <rect class="b-blue" x="356" y="614" width="184" height="76" rx="10"/>
+  <text class="lbl" x="448" y="638" text-anchor="middle">IWDG + WWDG</text>
+  <text class="note" x="448" y="657" text-anchor="middle">420 ms · kicked in TIM3 ISR</text>
+  <text class="note" x="448" y="676" text-anchor="middle">+ fault handlers dump regs</text>
+
+  <rect class="b-blue" x="554" y="614" width="184" height="76" rx="10"/>
+  <text class="lbl" x="646" y="638" text-anchor="middle">RTC</text>
+  <text class="note" x="646" y="657" text-anchor="middle">calendar · alarm callbacks</text>
+  <text class="note" x="646" y="676" text-anchor="middle">wakeup timer · backup regs</text>
+
+  <rect class="b-blue" x="752" y="614" width="184" height="76" rx="10"/>
+  <text class="lbl" x="844" y="638" text-anchor="middle">PWR</text>
+  <text class="note" x="844" y="657" text-anchor="middle">LP run: AHB ÷64, 1.25 MHz</text>
+  <text class="note" x="844" y="676" text-anchor="middle">WFI · 32 s IWDG in sleep</text>
+
+  <rect class="b-blue" x="356" y="704" width="184" height="76" rx="10"/>
+  <text class="lbl" x="448" y="728" text-anchor="middle">SPI2 / SPI3</text>
+  <text class="note" x="448" y="747" text-anchor="middle">master · mode 3 · 2.5 MHz</text>
+  <text class="note" x="448" y="766" text-anchor="middle">software chip-select</text>
+
+  <rect class="b-blue" x="554" y="704" width="184" height="76" rx="10"/>
+  <text class="lbl" x="646" y="728" text-anchor="middle">Soft I2C</text>
+  <text class="note" x="646" y="747" text-anchor="middle">bit-banged on GPIO pairs</text>
+  <text class="note" x="646" y="766" text-anchor="middle">MAG ×2 · panels · BATMON</text>
+
+  <rect class="b-blue" x="752" y="704" width="184" height="76" rx="10"/>
+  <text class="lbl" x="844" y="728" text-anchor="middle">UART + CRC</text>
+  <text class="note" x="844" y="747" text-anchor="middle">USART1/2 + 1-byte CRC</text>
+  <text class="note" x="844" y="766" text-anchor="middle">console: LPUART1, 9600</text>
+
+  <rect class="b-blue" x="356" y="794" width="184" height="76" rx="10"/>
+  <text class="lbl" x="448" y="818" text-anchor="middle">ADC + DMA</text>
+  <text class="note" x="448" y="837" text-anchor="middle">ADC2/ADC3 · DMA circular</text>
+  <text class="note" x="448" y="856" text-anchor="middle">USART1 TX/RX on DMA1</text>
+
+  <rect class="b-blue" x="554" y="794" width="184" height="76" rx="10"/>
+  <text class="lbl" x="646" y="818" text-anchor="middle">GPIO + EXTI</text>
+  <text class="note" x="646" y="837" text-anchor="middle">LEDs · buttons (EXTI15_10)</text>
+  <text class="note" x="646" y="856" text-anchor="middle">power-rail pins</text>
+
+  <rect class="b-blue" x="752" y="794" width="184" height="76" rx="10"/>
+  <text class="lbl" x="844" y="818" text-anchor="middle">Timers</text>
+  <text class="note" x="844" y="837" text-anchor="middle">TIM7 1 kHz tick · TIM3 kick</text>
+  <text class="note" x="844" y="856" text-anchor="middle">TIM5 startup · TIM6 log</text>
+
+  <path class="edge" d="M844,534 V610" marker-end="url(#ah)"/>
+  <text class="elbl" x="852" y="566">LP run · WFI</text>
+  <path class="edge" d="M700,534 V610" marker-end="url(#ah)"/>
+  <text class="elbl" x="708" y="566">arm wakeup</text>
+
+  <!-- ===================== EXPERIMENT LOGGING ===================== -->
+  <rect class="group" x="500" y="914" width="452" height="232" rx="12"/>
+  <text class="glbl" x="516" y="936">EXPERIMENT LOGGING</text>
+
+  <rect class="b-blue" x="748" y="948" width="188" height="76" rx="10"/>
+  <text class="lbl" x="842" y="972" text-anchor="middle">TIM6 ExpLog ISR</text>
+  <text class="note" x="842" y="991" text-anchor="middle">logger_timer.c · 100 ms</text>
+  <text class="note" x="842" y="1010" text-anchor="middle">started only by its test</text>
+
+  <rect class="b-blue" x="516" y="948" width="204" height="76" rx="10"/>
+  <text class="lbl" x="618" y="972" text-anchor="middle">Log callback</text>
+  <text class="note" x="618" y="991" text-anchor="middle">logger_registerLogFunction()</text>
+  <text class="note" x="618" y="1010" text-anchor="middle">no caller registers one</text>
+
+  <rect class="b-planned" x="516" y="1056" width="204" height="76" rx="10"/>
+  <text class="lbl" x="618" y="1080" text-anchor="middle">Logging records</text>
+  <text class="note" x="618" y="1099" text-anchor="middle">loggers_interface.h: push/pull</text>
+  <text class="note" x="618" y="1118" text-anchor="middle">logging_records.h · no .c yet</text>
+
+  <rect class="b-planned" x="748" y="1056" width="188" height="76" rx="10"/>
+  <text class="lbl" x="842" y="1080" text-anchor="middle">Flash + FRAM</text>
+  <text class="note" x="842" y="1099" text-anchor="middle">flash_push · fram_push</text>
+  <text class="note" x="842" y="1118" text-anchor="middle">QSPI driver built, unused</text>
+
+  <path class="edge" d="M842,870 V944" marker-end="url(#ah)"/>
+  <text class="elbl" x="850" y="902">TIM6</text>
+  <path class="edge" d="M748,986 H724" marker-end="url(#ah)"/>
+  <path class="edge-dash" d="M618,1024 V1052" marker-end="url(#ah)"/>
+  <text class="elbl" x="626" y="1042">nothing wired</text>
+  <path class="edge-dash" d="M720,1094 H744" marker-end="url(#ah)"/>
+
+  <!-- ===================== ADCS ===================== -->
+  <rect class="group" x="24" y="578" width="292" height="1174" rx="12"/>
+  <text class="glbl" x="40" y="600">ADCS — Src/ADCS</text>
+  <text class="glbl" x="40" y="616">makefile → libADCS.a (gcc)</text>
+
+  <rect class="b-green" x="40" y="630" width="230" height="76" rx="10"/>
+  <text class="lbl" x="155" y="654" text-anchor="middle">ADCS_MAIN(mode)</text>
+  <text class="note" x="155" y="673" text-anchor="middle">detumble · HDD exps · tests</text>
+  <text class="note" x="155" y="692" text-anchor="middle">recommend_mode cycles 3 exps</text>
+
+  <rect class="b-green" x="40" y="790" width="230" height="76" rx="10"/>
+  <text class="lbl" x="155" y="814" text-anchor="middle">Control</text>
+  <text class="note" x="155" y="833" text-anchor="middle">B-dot detumble · PID · ramp</text>
+  <text class="note" x="155" y="852" text-anchor="middle">PID + ramp set HDD throttle</text>
+
+  <rect class="b-green" x="40" y="950" width="230" height="76" rx="10"/>
+  <text class="lbl" x="155" y="974" text-anchor="middle">Determination</text>
+  <text class="note" x="155" y="993" text-anchor="middle">TRIAD · IGRF-13 · SGP4/TLE · SPA</text>
+  <text class="note" x="155" y="1012" text-anchor="middle">NOVAS for moon direction</text>
+
+  <rect class="b-green" x="40" y="1130" width="170" height="502" rx="10"/>
+  <text class="lbl" x="125" y="1154" text-anchor="middle">vi_* bridge</text>
+  <text class="note" x="125" y="1173" text-anchor="middle">virtual_intellisat.c</text>
+  <text class="note" x="125" y="1192" text-anchor="middle">millis/delay ← TIM7</text>
+
+  <rect class="b-planned" x="40" y="1662" width="230" height="76" rx="10"/>
+  <text class="lbl" x="155" y="1686" text-anchor="middle">virtual_rtos</text>
+  <text class="note" x="155" y="1705" text-anchor="middle">FreeRTOS critical sections</text>
+  <text class="note" x="155" y="1724" text-anchor="middle">+ task notify · nothing calls it</text>
+
+  <path class="edge-dash" d="M250,534 V626" marker-end="url(#ah)"/>
+  <text class="elbl" x="258" y="566">commands a mode · no caller yet</text>
+  <path class="edge" d="M155,706 V786" marker-end="url(#ah)"/>
+  <text class="elbl" x="163" y="750">runs the mode</text>
+  <path class="edge" d="M155,866 V946" marker-end="url(#ah)"/>
+  <text class="elbl" x="163" y="910">TRIAD experiment only</text>
+  <path class="edge-dash" d="M80,1026 V1126" marker-end="url(#ah)"/>
+  <text class="elbl" x="88" y="1080">epoch · TLE · mag · CSS</text>
+  <path class="edge" d="M270,828 H294 V1100 H180 V1126" marker-end="url(#ah)"/>
+  <text class="elbl" x="288" y="1050" text-anchor="end">HDD · coil · gyro · mag · millis</text>
+
+  <!-- device drivers call the bus drivers above -->
+  <path class="edge" d="M470,1170 V888" marker-end="url(#ah)"/>
+  <text class="elbl" x="462" y="1010" text-anchor="end">device drivers</text>
+  <text class="elbl" x="462" y="1024" text-anchor="end">call the bus</text>
+  <text class="elbl" x="462" y="1038" text-anchor="end">drivers above</text>
+
+  <!-- ===================== SENSOR + ACTUATOR DRIVERS ===================== -->
+  <rect class="group" x="340" y="1170" width="248" height="754" rx="12"/>
+  <text class="glbl" x="356" y="1192">SENSOR + ACTUATOR DRIVERS</text>
+  <text class="glbl" x="356" y="1208">Src/peripherals + pwm_timer.c</text>
+
+  <rect class="b-orange" x="356" y="1222" width="216" height="72" rx="10"/>
+  <text class="lbl" x="464" y="1245" text-anchor="middle">IMU ×2 — ASM330LHH.c</text>
+  <text class="note" x="464" y="1263" text-anchor="middle">set_IMU() picks IMU0 or IMU1</text>
+  <text class="note" x="464" y="1281" text-anchor="middle">init at boot · gyro + accel</text>
+
+  <rect class="b-orange" x="356" y="1304" width="216" height="72" rx="10"/>
+  <text class="lbl" x="464" y="1327" text-anchor="middle">MAG ×2 — QMC5883L.c</text>
+  <text class="note" x="464" y="1345" text-anchor="middle">init at boot · both MAGs</text>
+  <text class="note" x="464" y="1363" text-anchor="middle">reads always use MAG1</text>
+
+  <rect class="b-orange" x="356" y="1386" width="216" height="72" rx="10"/>
+  <text class="lbl" x="464" y="1409" text-anchor="middle">Sun sensors</text>
+  <text class="note" x="464" y="1427" text-anchor="middle">sun_sensors + INA226 + TMP275</text>
+  <text class="note" x="464" y="1445" text-anchor="middle">init at boot</text>
+
+  <rect class="b-blue" x="356" y="1468" width="216" height="72" rx="10"/>
+  <text class="lbl" x="464" y="1491" text-anchor="middle">HDD PWM — pwm_timer.c</text>
+  <text class="note" x="464" y="1509" text-anchor="middle">vi passes an unset channel</text>
+  <text class="note" x="464" y="1527" text-anchor="middle">timer init only in its test</text>
+
+  <rect class="b-orange" x="356" y="1550" width="216" height="72" rx="10"/>
+  <text class="lbl" x="464" y="1573" text-anchor="middle">MGT intercom</text>
+  <text class="note" x="464" y="1591" text-anchor="middle">coil %, direction, current, kill</text>
+  <text class="note" x="464" y="1609" text-anchor="middle">init only in its tester</text>
+
+  <rect class="b-orange" x="356" y="1632" width="216" height="72" rx="10"/>
+  <text class="lbl" x="464" y="1655" text-anchor="middle">Radio intercom</text>
+  <text class="note" x="464" y="1673" text-anchor="middle">D/U/S/T/K msgs · 8-byte chunks</text>
+  <text class="note" x="464" y="1691" text-anchor="middle">init only in its tester</text>
+
+  <rect class="b-planned" x="356" y="1714" width="216" height="72" rx="10"/>
+  <text class="lbl" x="464" y="1737" text-anchor="middle">Battery monitor</text>
+  <text class="note" x="464" y="1755" text-anchor="middle">bat.c (ADC) commented out</text>
+  <text class="note" x="464" y="1773" text-anchor="middle">BATMON INA226 set, never read</text>
+
+  <rect class="b-orange" x="356" y="1836" width="216" height="72" rx="10"/>
+  <text class="lbl" x="464" y="1859" text-anchor="middle">Power distribution</text>
+  <text class="note" x="464" y="1877" text-anchor="middle">pdb_* rail on/off</text>
+  <text class="note" x="464" y="1895" text-anchor="middle">pdb_init() never called</text>
+
+  <!-- vi_* bridge -> device drivers -->
+  <path class="edge" d="M210,1258 H352" marker-end="url(#ah)"/>
+  <text class="elbl" x="218" y="1252">vi_get_angvel</text>
+  <path class="edge-dash" d="M210,1340 H352" marker-end="url(#ah)"/>
+  <text class="elbl" x="218" y="1334">vi_get_mag</text>
+  <path class="edge-dash" d="M210,1422 H352" marker-end="url(#ah)"/>
+  <text class="elbl" x="218" y="1416">vi_get_css</text>
+  <path class="edge" d="M210,1504 H352" marker-end="url(#ah)"/>
+  <text class="elbl" x="218" y="1498">vi_hdd_command</text>
+  <path class="edge-dash" d="M210,1586 H352" marker-end="url(#ah)"/>
+  <text class="elbl" x="218" y="1580">vi_control_coil</text>
+
+  <!-- ===================== HARDWARE ===================== -->
+  <rect class="group" x="690" y="1170" width="262" height="754" rx="12"/>
+  <text class="glbl" x="706" y="1192">HARDWARE — OUTSIDE THE MCU</text>
+
+  <rect class="b-red" x="706" y="1222" width="230" height="72" rx="10"/>
+  <text class="lbl" x="821" y="1245" text-anchor="middle">ASM330LHH ×2</text>
+  <text class="note" x="821" y="1263" text-anchor="middle">IMU0 on SPI3: ±2 g, 1000 dps</text>
+  <text class="note" x="821" y="1281" text-anchor="middle">IMU1 on SPI2: ±8 g, 500 dps</text>
+
+  <rect class="b-red" x="706" y="1304" width="230" height="72" rx="10"/>
+  <text class="lbl" x="821" y="1327" text-anchor="middle">QMC5883L ×2</text>
+  <text class="note" x="821" y="1345" text-anchor="middle">MAG0 PB8/PB9 · MAG1 PF0/PF1</text>
+  <text class="note" x="821" y="1363" text-anchor="middle">200 Hz · ±8 G · OSR 512</text>
+
+  <rect class="b-red" x="706" y="1386" width="230" height="72" rx="10"/>
+  <text class="lbl" x="821" y="1409" text-anchor="middle">Sun-sensor panels ×6</text>
+  <text class="note" x="821" y="1427" text-anchor="middle">12 photodiodes on ADC2/ADC3</text>
+  <text class="note" x="821" y="1445" text-anchor="middle">INA226 + 2× TMP275 on 4 panels</text>
+
+  <rect class="b-red" x="706" y="1468" width="230" height="72" rx="10"/>
+  <text class="lbl" x="821" y="1491" text-anchor="middle">HDD ESCs</text>
+  <text class="note" x="821" y="1509" text-anchor="middle">PWM0: TIM1 CH1 (PE9)</text>
+  <text class="note" x="821" y="1527" text-anchor="middle">PWM1: TIM2 CH4 (PA3)</text>
+
+  <rect class="b-red" x="706" y="1550" width="230" height="72" rx="10"/>
+  <text class="lbl" x="821" y="1573" text-anchor="middle">Magnetorquer MCU</text>
+  <text class="note" x="821" y="1591" text-anchor="middle">runs the coil PWMs + timers</text>
+  <text class="note" x="821" y="1609" text-anchor="middle">its firmware: not in this repo</text>
+
+  <rect class="b-red" x="706" y="1632" width="230" height="72" rx="10"/>
+  <text class="lbl" x="821" y="1655" text-anchor="middle">Radio board</text>
+  <text class="note" x="821" y="1673" text-anchor="middle">ADF7021 datasheet in Manuals/</text>
+  <text class="note" x="821" y="1691" text-anchor="middle">its firmware: not in this repo</text>
+
+  <rect class="b-red" x="706" y="1744" width="230" height="72" rx="10"/>
+  <text class="lbl" x="821" y="1767" text-anchor="middle">Ground station</text>
+  <text class="note" x="821" y="1785" text-anchor="middle">'T' = TransferToGround</text>
+  <text class="note" x="821" y="1803" text-anchor="middle">repo has only TLE + dish tools</text>
+
+  <rect class="b-red" x="706" y="1836" width="230" height="72" rx="10"/>
+  <text class="lbl" x="821" y="1859" text-anchor="middle">Power rails</text>
+  <text class="note" x="821" y="1877" text-anchor="middle">pyro burnwire · MGT · HDD</text>
+  <text class="note" x="821" y="1895" text-anchor="middle">switched on/off by GPIO</text>
+
+  <!-- device drivers -> hardware, labelled with the bus -->
+  <path class="edge" d="M572,1258 H702" marker-end="url(#ah)"/>
+  <text class="elbl" x="639" y="1250" text-anchor="middle">SPI · 2.5 MHz</text>
+  <path class="edge" d="M572,1340 H702" marker-end="url(#ah)"/>
+  <text class="elbl" x="639" y="1332" text-anchor="middle">soft I2C</text>
+  <path class="edge" d="M572,1422 H702" marker-end="url(#ah)"/>
+  <text class="elbl" x="639" y="1400" text-anchor="middle">ADC2/ADC3</text>
+  <text class="elbl" x="639" y="1414" text-anchor="middle">+ soft I2C</text>
+  <path class="edge" d="M572,1504 H702" marker-end="url(#ah)"/>
+  <text class="elbl" x="639" y="1496" text-anchor="middle">PWM</text>
+  <path class="edge" d="M576,1586 H702" marker-start="url(#ah)" marker-end="url(#ah)"/>
+  <text class="elbl" x="639" y="1564" text-anchor="middle">USART2</text>
+  <text class="elbl" x="639" y="1578" text-anchor="middle">9600 + CRC</text>
+  <path class="edge" d="M576,1668 H702" marker-start="url(#ah)" marker-end="url(#ah)"/>
+  <text class="elbl" x="639" y="1646" text-anchor="middle">USART1</text>
+  <text class="elbl" x="639" y="1660" text-anchor="middle">9600 + CRC</text>
+  <path class="edge" d="M572,1872 H702" marker-end="url(#ah)"/>
+  <text class="elbl" x="639" y="1864" text-anchor="middle">GPIO</text>
+  <path class="edge" d="M821,1708 V1740" marker-start="url(#ah)" marker-end="url(#ah)"/>
+  <text class="elbl" x="831" y="1728">downlink / commands</text>
+
+  <!-- ===================== LEGEND ===================== -->
+  <text class="glbl" x="40" y="1950">LEGEND</text>
+  <rect class="b-gray" x="40" y="1960" width="26" height="14" rx="4"/>
+  <text class="note" x="76" y="1971">boot + verification</text>
+  <rect class="b-purple" x="225" y="1960" width="26" height="14" rx="4"/>
+  <text class="note" x="261" y="1971">FreeRTOS scheduler</text>
+  <rect class="b-green" x="410" y="1960" width="26" height="14" rx="4"/>
+  <text class="note" x="446" y="1971">ADCS</text>
+  <rect class="b-blue" x="595" y="1960" width="26" height="14" rx="4"/>
+  <text class="note" x="631" y="1971">system drivers</text>
+  <rect class="b-orange" x="780" y="1960" width="26" height="14" rx="4"/>
+  <text class="note" x="816" y="1971">device drivers</text>
+  <rect class="b-red" x="40" y="1984" width="26" height="14" rx="4"/>
+  <text class="note" x="76" y="1995">hardware outside the MCU</text>
+  <rect class="b-planned" x="260" y="1984" width="26" height="14" rx="4"/>
+  <text class="note" x="296" y="1995">dashed box = planned or stub</text>
+  <path class="edge" d="M490,1991 H516" marker-end="url(#ah)"/>
+  <text class="note" x="526" y="1995">call or data flow</text>
+  <path class="edge-dash" d="M690,1991 H716" marker-end="url(#ah)"/>
+  <text class="note" x="726" y="1995">planned, stub or commented-out link</text>
+</svg>
