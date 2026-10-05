@@ -21,7 +21,7 @@ flowchart top-to-bottom; the dashed boxes and links are the roadmap.
 
 ## End-to-end flowchart
 
-<p align="center"><img src="docs/system-design-flowchart.svg" alt="IntelliSat end-to-end flowchart. Reset_Handler calls main(), which runs init_init() (clocks to 80 MHz, RTC on LSI) and then init_platform() (FPU, console, both IMUs, both magnetometers, sun sensors, LEDs, DMA, watchdogs, TIM7 heartbeat), then takes one compile-time path: a hardware test, the unit tests, or by default while(1). The branch_main() call that would start FreeRTOS is commented out, so the kernel (heap_4, 1 kHz configured tick, tickless idle via PWR and the RTC wakeup) and the empty mission-mode tasks are not reached, and nothing calls ADCS_MAIN yet. ADCS control (B-dot, PID, ramp) and determination (TRIAD with IGRF, SGP4, SPA) reach hardware only through the vi_* bridge: gyro reads, timing and HDD PWM are wired; magnetometer, sun sensor, coil, epoch and TLE calls are stubs. Register-level system drivers serve the device drivers for the IMUs (SPI), magnetometers (soft I2C, reads always use MAG1), sun sensors (ADC2/ADC3 and soft I2C), HDD ESCs (PWM), the magnetorquer MCU (USART2) and the radio board (USART1), both two-way at 9600 baud with CRC; the radio board carries downlink and commands to and from the ground station. The TIM6 experiment logger is set for 100 ms and started only by its test, no log callback is registered, and logging records, flash and FRAM storage are declared only. The power-distribution driver has no caller and the battery monitor is commented out." width="100%"></p>
+<p align="center"><img src="docs/system-design-flowchart.svg" alt="IntelliSat end-to-end flowchart. Reset_Handler calls main(), which runs init_init() (clocks to 80 MHz, RTC on LSI) and then init_platform() (FPU, console, both IMUs, both magnetometers, sun sensors, LEDs, DMA, watchdogs, TIM7 heartbeat), then takes one compile-time path: a hardware test, the unit tests, or by default while(1). The branch_main() call that would start FreeRTOS is commented out, so the kernel (heap_4, 1 kHz configured tick, tickless idle via PWR and the RTC wakeup) and the empty mission-mode tasks are not reached, and nothing calls ADCS_MAIN yet. ADCS control (B-dot, PID, ramp) and determination (TRIAD with IGRF, SGP4, SPA) reach hardware only through the vi_* bridge: gyro reads and timing are wired, the HDD PWM call only partly (no HDD selection, unscaled throttle); magnetometer, sun sensor, coil, epoch and TLE calls are stubs. Register-level system drivers serve the device drivers for the IMUs (SPI), magnetometers (soft I2C, reads always use MAG1), sun sensors (ADC2/ADC3 and soft I2C), HDD ESCs (PWM), the magnetorquer MCU (USART2) and the radio board (USART1), both two-way at 9600 baud with CRC; the radio board carries downlink and commands to and from the ground station. The TIM6 experiment logger is set for 100 ms and started only by its test, no log callback is registered, and logging records, flash and FRAM storage are declared only. The power-distribution driver has no caller and the battery monitor is commented out." width="100%"></p>
 
 ---
 
@@ -31,8 +31,10 @@ flowchart top-to-bottom; the dashed boxes and links are the roadmap.
    downcall — a scheduler mode is meant to command `ADCS_MAIN(mode)` and block
    until it returns a status (no caller exists yet). `virtual_intellisat.h` is
    the upcall — ADCS reads sensors and commands actuators *only* through `vi_*`
-   functions that IntelliSat implements (gyro, millisecond clock and HDD PWM
-   so far; mag, sun sensors and coils are still stubs). ADCS never touches a
+   functions that IntelliSat implements (gyro and millisecond clock so far;
+   `vi_hdd_command` calls the PWM driver but has no HDD/channel selection yet
+   and passes the [-1, 1] throttle unscaled as a 0–100 % duty; mag, sun
+   sensors and coils are still stubs). ADCS never touches a
    hardware register, so its sources also compile on a host into `libADCS.a`
    (`Src/ADCS/makefile`, gcc). `virtual_rtos` is the ADCS-side wrapper over
    FreeRTOS critical sections and task notifications; nothing calls it yet.
@@ -72,12 +74,12 @@ registered log callback), and the mode functions (`*_time` / `config_*` / run /
 | UART + CRC | System | C (registers) | ✅ built | `Src/system_config/UART/` |
 | Software I2C (bit-bang) | System | C (registers) | ✅ built | `Src/system_config/I2C/` |
 | SPI | System | C (registers) | ✅ built | `Src/system_config/SPI/` |
-| QSPI flash driver | System | C (registers) | ✅ built | `Src/system_config/QSPI/` |
+| QSPI peripheral driver (Rev 1/2 pin maps) | System | C (registers) | 🟡 written; no Rev 3 pin map, flash commands or caller yet | `Src/system_config/QSPI/` |
 | ADC + DMA | System | C (registers) | ✅ built | `Src/system_config/ADC/`, `DMA/` |
 | RTC (calendar, alarms) | System | C (registers) | ✅ built | `Src/system_config/RTC/` |
 | PWM timers | System | C (registers) | ✅ built | `Src/system_config/Timers/pwm_timer.c` |
 | Experiment log timer (TIM6 + callback) | System | C (registers) | ✅ built | `Src/system_config/Timers/logger_timer.c` |
-| Startup wait timer (TIM5, 30 min) | System | C (registers) | ✅ built | `Src/system_config/Timers/startup_timer.c` |
+| Startup wait timer (TIM5, 30 min target) | System | C (registers) | 🟡 built; `timer_waitStartupTime()` is cut off by `DEFAULT_TIMEOUT_MS` (1000) long before the 30 × 60 count, and its only caller `init_first_time()` is not called yet | `Src/system_config/Timers/startup_timer.c` |
 | Watchdogs (IWDG + WWDG) | System | C (registers) | ✅ built | `Src/system_config/WDG/` |
 | Fault handlers | System | C (registers) | ✅ built | `Src/system_config/Faults/` |
 | Low-power run + sleep | System | C (registers) | ✅ built | `Src/system_config/PWR/` |
@@ -87,7 +89,7 @@ registered log callback), and the mode functions (`*_time` / `config_*` / run /
 | Power distribution (pyro / MGT / HDD) | Peripheral | C · GPIO | ✅ built | `Src/peripherals/PDB/` |
 | MGT intercom | Peripheral | C · UART | ✅ built | `Src/peripherals/MGTINTERCOM/` |
 | Radio intercom | Peripheral | C · UART+CRC | 🟡 protocol defined | `Src/peripherals/Radio/` |
-| Battery monitor | Peripheral | C · ADC | ⬜ planned (stubbed) | `Src/peripherals/BAT/` |
+| Battery monitor | Peripheral | C · ADC | ⬜ planned (draft commented out) | `Src/peripherals/BAT/` |
 | FreeRTOS kernel + hooks | Scheduler | FreeRTOS | ✅ built | `FreeRTOS/`, `Src/scheduler/hooks/` |
 | Tickless low-power idle | Scheduler | FreeRTOS + RTC | ✅ built | `Src/scheduler/intelliTasks/low_pwr.c` |
 | Mission mode tasks | Scheduler | FreeRTOS | ⬜ scaffolded | `Src/scheduler/intelliTasks/` |
@@ -95,9 +97,9 @@ registered log callback), and the mode functions (`*_time` / `config_*` / run /
 | ADCS math (vector · matrix · quaternion) | ADCS | C | ✅ built | `Src/ADCS/adcs_math/` |
 | Attitude determination (TRIAD + models) | ADCS | C · IGRF/SGP4/SPA/NOVAS | ✅ built | `Src/ADCS/determination/` |
 | Attitude control (B-dot · PID · ramp) | ADCS | C | ✅ built | `Src/ADCS/control/` |
-| `virtual_intellisat` bridge | ADCS | C | 🟡 gyro, clock, HDD PWM wired; mag, sun, coils, epoch, TLE stubbed | `Src/ADCS/virtual_intellisat.h`, `.c` |
+| `virtual_intellisat` bridge | ADCS | C | 🟡 gyro and clock wired; HDD PWM call in place but HDD selection is a TODO and throttle is not scaled to a duty cycle; mag, sun, coils, epoch, TLE stubbed | `Src/ADCS/virtual_intellisat.h`, `.c` |
 | On-target unit test framework | Verification | C | ✅ built (IMU suite) | `Src/unit_tests/` |
-| Per-driver hardware testers | Verification | C | ✅ built | `*_tester.c`, `*_test.c` |
+| Per-driver hardware testers | Verification | C | ✅ built | `*_tester.c`, `*_test.c`, `*Test.c`, `RTC/RTC_storage.c` (IDs in `Src/inc/TestDefinition.h`) |
 
 > Mission mode tasks follow a fixed contract — `*_time()` (should it run?),
 > `config_*`, a run function (`run_detumble`, `comms`, `experiment`, `ecc`,
@@ -117,7 +119,7 @@ registered log callback), and the mode functions (`*_time` / `config_*` / run /
 | `Src/scheduler/` | FreeRTOS mission scheduler: mode tasks, kernel hooks, tickless idle |
 | `Src/ADCS/` | Attitude determination & control — separable subsystem with its own math and third-party models |
 | `Src/unit_tests/` | On-target unit test framework (suites, registry, assertions) |
-| `Src/tools/` | `printMsg` debug print/scan over the debug UART |
+| `Src/tools/` | `printMsg` debug printing over the debug UART, plus the `wait_with_timeout` / `while_timeout` loop helpers in `Utils.c` |
 | `FreeRTOS/`, `Drivers/` | Vendored FreeRTOS kernel and CMSIS / STM32L4 device headers |
 | `Startup/`, `*.ld` | Cortex-M4 reset vector and FLASH/RAM linker scripts |
 | `Manuals/`, `img/` | Onboarding, toolchain, and hardware documentation |
@@ -132,11 +134,11 @@ bring-up → Stage 8 flight readiness):
 | Stage | Name | Status |
 |---|---|---|
 | 0 | Board bring-up — clocks, GPIO, debug UART | ✅ done |
-| 1 | Bus + storage drivers — I2C, SPI, QSPI, ADC+DMA | ✅ done |
+| 1 | Bus + storage drivers — I2C, SPI, QSPI, ADC+DMA | 🟡 I2C, SPI, ADC+DMA done; QSPI driver written but has no Rev 3 pin map or caller yet |
 | 2 | Sensor + actuator peripherals — dual IMU, mag, sun sensors, PDB | ✅ done |
-| 3 | Timekeeping + protection — RTC, timers, watchdogs, fault handlers | ✅ done |
+| 3 | Timekeeping + protection — RTC, timers, watchdogs, fault handlers | 🟡 RTC, PWM/logger/heartbeat timers, watchdogs and fault handlers done; the TIM5 startup wait is cut off by `DEFAULT_TIMEOUT_MS` and is not called yet |
 | 4 | RTOS integration — kernel, hooks, tickless low-power idle | 🟡 queue/task demos; heap tuning in progress |
 | 5 | Mission scheduler — mode tasks with time/config/run/clean contract | ⬜ scaffolded, bodies pending |
 | 6 | ADCS integration — algorithms built, `vi_*` bridge implementations | 🟡 in progress |
 | 7 | Comms — radio + magnetorquer intercom protocols, ground loop | 🟡 protocols defined |
-| 8 | Flight readiness — antenna burnwire, flash logging, boot counters | ⬜ not started |
+| 8 | Flight readiness — antenna burnwire, flash logging, boot counters | ⬜ partial: RTC boot counter and burnwire GPIO switch exist; `init_first_time()` is never called and its burnwire/flash steps are TODOs |

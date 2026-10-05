@@ -88,7 +88,7 @@
   <text class="elbl mono" x="353" y="348">init_platform()</text>
 
   <path class="edge" d="M657,325 V363" marker-start="url(#ah)" marker-end="url(#ah)"/>
-  <text class="elbl" x="647" y="348" text-anchor="end">gyro · ms clock · PWM duty</text>
+  <text class="elbl" x="647" y="348" text-anchor="end">gyro · clock · PWM (partial)</text>
 
   <!-- ===== Sensors (left) ===== -->
   <text class="glbl" x="20" y="268">SENSORS</text>
